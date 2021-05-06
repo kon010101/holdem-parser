@@ -1,31 +1,4 @@
-export const input = `#Game No : 1393225818
-***** 888poker Snap Poker Hand History for Game 1393225818 *****
-$0.05/$0.10 Blinds No Limit Holdem - *** 16 09 2020 16:14:46
-Table Worms 6 Max (Real Money)
-Seat 1 is the button
-Total number of players : 6
-Seat 1: K.I.N.O. ( $10 )
-Seat 2: Garden2020 ( $6 )
-Seat 4: therealgrav ( $10 )
-Seat 6: jr313 ( $3.20 )
-Seat 7: Mikaelak92 ( $11.01 )
-Seat 9: felixf0815 ( $13.14 )
-Garden2020 posts small blind [$0.05]
-therealgrav posts big blind [$0.10]
-** Dealing down cards **
-Dealt to therealgrav [ 8c, Ac ]
-jr313 foldas
-Mikaelak92 folds
-felixf0815 folds
-K.I.N.O. folds
-Garden2020 folds
-** Summary **
-therealgrav did not show his hand
-therealgrav collected [ $0.15 ]
-
-
-
-#Game No : 1393225868
+const input = `#Game No : 1393225868
 ***** 888poker Snap Poker Hand History for Game 1393225868 *****
 $0.05/$0.10 Blinds No Limit Holdem - *** 16 09 2020 16:15:04
 Table Worms 6 Max (Real Money)
@@ -12472,3 +12445,5 @@ Krista999 collected [ $0.25 ]
 
 
 `;
+
+export { input };

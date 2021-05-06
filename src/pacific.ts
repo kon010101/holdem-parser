@@ -26,7 +26,7 @@ const flopCards = `(${card})[, ]+(${card})[, ]+(${card})`;
 const preludeGameNoRx = /^#Game No/i;
 
 //line 2 ( ***** 888poker Hand History for Game 503663069 ****  ***** Cassava Hand History for Game 384831647 *****)
-const gameIDRx = /^[*]+ +(?:888poker|Cassava|888poker Snap Poker|888.de) +Hand History for Game +(\d+) +[*]+/i;
+const gameIDRx = /^[*]+ +(?:888poker|Cassava|888poker Snap Poker|888.de|888.de Snap Poker) +Hand History for Game +(\d+) +[*]+/i;
 
 //line 3 (Cash+Tourney: $0.06/$0.12 Blinds Fix Limit Holdem - *** 17 06 2018 20:28:2)
 // Fix Limit Holdem
@@ -145,6 +145,7 @@ type SeatType = {
 };
 
 type ActionType = {
+  id: number;
   playerName: string;
   street: string;
   type: string;
@@ -184,6 +185,11 @@ type Winning = {
   winnings: number;
 };
 
+type Investment = {
+  playerName: string;
+  investments: number;
+};
+
 export interface HandInterface {
   info: InfoType;
   table: TableInterface;
@@ -214,7 +220,7 @@ class HoldemPacificParser {
   _isCashGame: boolean;
   _potSize: number;
   _currentPlayerInfos: CurrentPlayerInfoType[];
-  _currentBet: { playerName: string; amount: number };
+  _currentActionId: number;
 
   constructor(lines: string[]) {
     this._lines = lines;
@@ -245,13 +251,13 @@ class HoldemPacificParser {
       seats: [],
       actions: [],
       winnings: [],
-      rake: null,
+      rake: 0,
       ignored: [],
     };
 
     //stacksizes depending on current situation
     this._currentPlayerInfos = [];
-    this._currentBet = null;
+    this._currentActionId = 0;
 
     this._allIns = {
       preflop: false,
@@ -391,11 +397,7 @@ class HoldemPacificParser {
 
     let newStack = currInfo[0].stackSize - amount;
     newStack = round(newStack, 2);
-    if (newStack <= 0) {
-      //player is all in
-      newStack = 0;
-      //TODO set player all in and handle pot size
-    }
+
     //set new currInfo
     const idx = this._currentPlayerInfos.findIndex((item) => item.playerName === name);
     this._currentPlayerInfos[idx].stackSize = newStack;
@@ -415,6 +417,7 @@ class HoldemPacificParser {
     const type = identifyPost(match[2]);
     const amount = safeParseFloat(match[3]);
     const playerName = match[1];
+    this._currentActionId = this._currentActionId + 1;
 
     //update potsize
     const newPotSize = this._potSize + amount;
@@ -423,6 +426,7 @@ class HoldemPacificParser {
     const newStack = this._updatePlayerStack(playerName, amount);
 
     this._hand.actions.push({
+      id: this._currentActionId,
       playerName: playerName,
       amount: amount,
       type: type,
@@ -449,8 +453,10 @@ class HoldemPacificParser {
     this._potSize = round(newPotSize, 2);
     //update Stacksize of player
     const newStack = this._updatePlayerStack(playerName, amount);
+    this._currentActionId = this._currentActionId + 1;
 
     this._hand.actions.push({
+      id: this._currentActionId,
       playerName: playerName,
       amount: amount,
       type: type,
@@ -540,14 +546,35 @@ class HoldemPacificParser {
     return true;
   }
 
+  _sortCards(card1: string, card2: string) {
+    //sort cards by highest first [A, K, Q, J, T, 9, 8, 7, 6, 5, 4, 3, 2] and colors like [c, s, h, d]
+    const order = ["A", "K", "Q", "J", "T", "9", "8", "7", "6", "5", "4", "3", "2"];
+    const colors = ["c", "s", "h", "d"];
+
+    let indexCard1 = order.findIndex((el) => el === card1[0]);
+    let indexCard2 = order.findIndex((el) => el === card2[0]);
+
+    if (indexCard1 === indexCard2) {
+      //pair order by color
+      indexCard1 = colors.findIndex((el) => el === card1[1]);
+      indexCard2 = colors.findIndex((el) => el === card2[1]);
+    }
+
+    const cardString = indexCard1 < indexCard2 ? `${card1}${card2}` : `${card2}${card1}`;
+
+    return cardString;
+  }
+
   _readHoleCards(line: string) {
     const match = line.match(holecardsRx);
     if (match === null) return false;
 
     const [, hero, card1, card2] = match;
 
+    const cards = this._sortCards(card1, card2);
+
     this._hand.heroName = hero;
-    this._hand.holeCards = `${card1}${card2}`;
+    this._hand.holeCards = cards;
 
     return true;
   }
@@ -562,6 +589,7 @@ class HoldemPacificParser {
     const type = identifyActionType(match[2]);
     const amount = safeParseFloat(match[3]);
     const playerName = safeTrim(match[1]);
+    this._currentActionId = this._currentActionId + 1;
 
     let newStack = this._currentPlayerInfos.filter((info) => info.playerName === playerName)[0].stackSize;
 
@@ -574,11 +602,8 @@ class HoldemPacificParser {
       newStack = this._updatePlayerStack(playerName, amount);
     }
 
-    if (type === "bet" || type === "raise" || type === "sb" || type === "bb") {
-      this._currentBet = { playerName: playerName, amount: amount };
-    }
-
     this._hand.actions.push({
+      id: this._currentActionId,
       playerName: playerName,
       amount: amount,
       type: type,
@@ -599,21 +624,10 @@ class HoldemPacificParser {
     const playerName = safeTrim(match[1]);
     let newStack = this._currentPlayerInfos.find((el) => el.playerName === playerName).stackSize + this._potSize;
     newStack = round(newStack, 2);
-
-    //calculate rake in cashgame
-    let finalPot = 0;
-    if (this._currentBet?.playerName === playerName) {
-      finalPot = this._potSize - this._currentBet.amount;
-      finalPot = round(finalPot, 2);
-    } else {
-      finalPot = this._potSize;
-    }
-
-    let rake = finalPot - amount;
-    rake = round(rake, 2);
-    if (rake > 0) this._hand.rake = rake;
+    this._currentActionId = this._currentActionId + 1;
 
     this._hand.actions.push({
+      id: this._currentActionId,
       playerName: playerName,
       amount: amount,
       type: "collect",
@@ -638,7 +652,9 @@ class HoldemPacificParser {
     if (match !== null) {
       const card1 = safeFirstUpper(safeTrim(match[2]));
       const card2 = safeFirstUpper(safeTrim(match[3]));
-      const cardString = `${card1}${card2}`;
+
+      const cardString = this._sortCards(card1, card2);
+
       this._hand.playerCards.push({
         playerName: safeTrim(match[1]),
         cards: cardString,
@@ -670,6 +686,77 @@ class HoldemPacificParser {
     const hero = this._hand.seats.findIndex((s) => s.playerName === this._hand.heroName);
     const pos = hero - btn;
     this._hand.heroPosition = pos < 0 ? position[position.length + pos] : position[pos];
+  }
+
+  //per street how much did every player put in the pot
+  //if all players put same amount -> no all in
+  //in one player put less -> he is all in...
+  _calcRake() {
+    const streets = ["preflop", "flop", "turn", "river", "showdown"];
+    let rest = 0; //if players are all in and can not call the entire bet, this is the amount they could not call
+    let lastBet = 0;
+
+    streets.forEach((street) => {
+      const investmentsOfPlayers: Investment[] = [];
+      const currActions = this._hand.actions.filter((action) => action.street === street);
+
+      if (currActions !== []) {
+        currActions.forEach((action) => {
+          if (
+            action.type === "sb" ||
+            action.type === "bb" ||
+            action.type === "raise" ||
+            action.type === "bet" ||
+            action.type === "call"
+          ) {
+            const idx = investmentsOfPlayers.findIndex((item) => item.playerName === action.playerName); //if not in array returns -1
+            //any action which increases the pot
+            //add amount to investments of current player
+            if (idx !== -1) {
+              //player exists in investment array
+              const newInvest = investmentsOfPlayers[idx].investments + action.amount;
+              investmentsOfPlayers[idx].investments = round(newInvest, 2);
+            } else {
+              investmentsOfPlayers.push({
+                playerName: action.playerName,
+                investments: action.amount,
+              });
+            }
+
+            lastBet = action.amount;
+          }
+
+          if (action.type === "call") {
+            //search for highest bet and see if it matches
+            investmentsOfPlayers.sort((a, b) => b.investments - a.investments);
+            let diff = 0;
+            const newIdx = investmentsOfPlayers.findIndex((item) => item.playerName === action.playerName);
+
+            //if there is a difference, the player is all in and the amount need to be subtracted from
+            //collect, because it is uncalled money which is not included in amount of winnings in "collect"
+            diff = investmentsOfPlayers[0].investments - investmentsOfPlayers[newIdx].investments;
+
+            if (diff) {
+              const newRest = rest + diff;
+              rest = round(newRest, 2);
+            }
+
+            lastBet = 0;
+          }
+
+          if (action.type === "collect" && action.playerName === this._hand.heroName) {
+            //calc rake
+            console.log(rest);
+            const realPot = action.potSize - rest - lastBet;
+            let rake = realPot - action.amount;
+
+            if (rake > 0.1 * action.potSize || rake < 0) rake = 0;
+
+            this._hand.rake = round(rake, 2);
+          }
+        });
+      }
+    });
   }
 
   parse() {
@@ -744,6 +831,11 @@ class HoldemPacificParser {
 
     //set positions for seats
     this._setPositions();
+
+    //calculate rake in cash game hands
+    if (this._hand.info.gametype === "cash") {
+      this._calcRake();
+    }
 
     return this._hand;
   } //end for loop

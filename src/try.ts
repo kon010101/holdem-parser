@@ -203,4 +203,6 @@ if (!hands[hands.length]) hands.pop(); //remove last element (empty string)
 const parsed: HandInterface[] = hands?.map((hand) => (canParse(hand) ? parseHand(hand) : { error: "cant parse" }));
 // console.log("parsed", parsed[1].seats, parsed[1].rake);
 
-parsed.forEach((hand) => console.log(hand.heroPosition));
+parsed.forEach((hand) => console.log(hand.rake, hand.info.handId));
+
+// parsed; //?
