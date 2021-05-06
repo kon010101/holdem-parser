@@ -175,17 +175,17 @@ interface TableInterface {
   metaData: MetaDataType[];
 }
 
-type PlayerCard = {
+type PlayerCards = {
   playerName: string;
   cards: string;
 };
 
-type Winning = {
+type Winnings = {
   playerName: string;
   winnings: number;
 };
 
-type Investment = {
+type Investments = {
   playerName: string;
   investments: number;
 };
@@ -197,10 +197,10 @@ export interface HandInterface {
   heroPosition: string;
   holeCards: string;
   boardCards: { cards: string[]; metaData: MetaDataType[] };
-  playerCards: PlayerCard[];
+  playerCards: PlayerCards[];
   seats: SeatType[];
   actions: ActionType[];
-  winnings: Winning[];
+  winnings: Winnings[];
   rake: number;
   ignored: MetaDataType[];
 }
@@ -695,7 +695,7 @@ class HoldemPacificParser {
     let lastBet = 0; //saves the last bet, and needs to be subtracted from the pot if uncalled at the end
 
     streets.forEach((street) => {
-      const investmentsOfPlayers: Investment[] = [];
+      const investmentsOfPlayers: Investments[] = [];
       const currActions = this._hand.actions.filter((action) => action.street === street);
 
       if (currActions !== []) {
