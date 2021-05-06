@@ -688,13 +688,11 @@ class HoldemPacificParser {
     this._hand.heroPosition = pos < 0 ? position[position.length + pos] : position[pos];
   }
 
-  //per street how much did every player put in the pot
-  //if all players put same amount -> no all in
-  //in one player put less -> he is all in...
+  //calculates the rake in a cash game hand
   _calcRake() {
     const streets = ["preflop", "flop", "turn", "river", "showdown"];
     let rest = 0; //if players are all in and can not call the entire bet, this is the amount they could not call
-    let lastBet = 0;
+    let lastBet = 0; //saves the last bet, and needs to be subtracted from the pot if uncalled at the end
 
     streets.forEach((street) => {
       const investmentsOfPlayers: Investment[] = [];
@@ -746,12 +744,10 @@ class HoldemPacificParser {
 
           if (action.type === "collect" && action.playerName === this._hand.heroName) {
             //calc rake
-            console.log(rest);
             const realPot = action.potSize - rest - lastBet;
             let rake = realPot - action.amount;
 
             if (rake > 0.1 * action.potSize || rake < 0) rake = 0;
-
             this._hand.rake = round(rake, 2);
           }
         });
